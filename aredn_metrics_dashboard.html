@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AREDN Mesh Metrics Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--bg2:#f5f5f3;--bg3:#eeede9;
+  --text:#1a1a18;--text2:#5f5e5a;--text3:#888780;
+  --border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.2);
+  --green:#1D9E75;--amber:#EF9F27;--red:#E24B4A;--blue:#378ADD;
+  --green-bg:#E1F5EE;--green-text:#0F6E56;
+  --amber-bg:#FAEEDA;--amber-text:#854F0B;
+  --red-bg:#FCEBEB;--red-text:#A32D2D;
+  --blue-bg:#E6F1FB;--blue-text:#185FA5;
+  --radius:8px;--radius-lg:12px;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1a1a18;--bg2:#222220;--bg3:#2c2c2a;
+  --text:#f0efeb;--text2:#b4b2a9;--text3:#888780;
+  --border:rgba(255,255,255,0.12);--border2:rgba(255,255,255,0.22);
+  --green-bg:#04342C;--green-text:#9FE1CB;
+  --amber-bg:#412402;--amber-text:#FAC775;
+  --red-bg:#501313;--red-text:#F7C1C1;
+  --blue-bg:#042C53;--blue-text:#B5D4F4;
+}}
+:root[data-theme=dark]{
+  --bg:#1a1a18;--bg2:#222220;--bg3:#2c2c2a;
+  --text:#f0efeb;--text2:#b4b2a9;--text3:#888780;
+  --border:rgba(255,255,255,0.12);--border2:rgba(255,255,255,0.22);
+  --green-bg:#04342C;--green-text:#9FE1CB;
+  --amber-bg:#412402;--amber-text:#FAC775;
+  --red-bg:#501313;--red-text:#F7C1C1;
+  --blue-bg:#042C53;--blue-text:#B5D4F4;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg3);color:var(--text);font-size:14px;line-height:1.5}
+.app{max-width:1100px;margin:0 auto;padding:20px 16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo h1{font-size:16px;font-weight:600}
+.badge{font-size:11px;padding:3px 9px;border-radius:var(--radius);background:var(--green-bg);color:var(--green-text);border:0.5px solid var(--green);font-weight:500}
+.poll-ts{font-size:12px;color:var(--text3)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.icon-btn{font-size:12px;padding:5px 11px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);border-radius:var(--radius);cursor:pointer;font-weight:500;transition:background .15s;white-space:nowrap}
+.icon-btn:hover{background:var(--bg2)}
+.alert-banner{display:none;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius);margin-bottom:14px;font-size:13px;font-weight:500;flex-wrap:wrap}
+.alert-banner.visible{display:flex}
+.alert-quality{background:var(--red-bg);color:var(--red-text);border:0.5px solid var(--red)}
+.alert-down{background:var(--amber-bg);color:var(--amber-text);border:0.5px solid var(--amber)}
+.alert-btn{margin-left:auto;font-size:11px;padding:2px 8px;border:0.5px solid currentColor;border-radius:var(--radius);background:none;color:inherit;cursor:pointer;font-weight:600}
+.live-cfg{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px}
+.cfg-node-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.cfg-apply{font-size:12px;padding:6px 16px;border:0.5px solid var(--green);background:var(--green-bg);color:var(--green-text);border-radius:var(--radius);cursor:pointer;font-weight:600;transition:background .15s}
+.cfg-apply:hover{background:var(--green);color:#fff}
+.fetch-err{font-size:12px;color:var(--red-text);background:var(--red-bg);border:0.5px solid var(--red);border-radius:var(--radius);padding:6px 10px;margin-top:8px;display:none}
+.fetch-err.visible{display:block}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.alert-cfg{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-top:10px;display:none}
+.alert-cfg.open{display:block}
+.alert-cfg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-bottom:6px}
+.alert-cfg-row:last-child{margin-bottom:0}
+.alert-cfg input[type=number]{width:60px;font-size:12px;padding:3px 6px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text)}
+.alert-cfg input[type=checkbox]{width:14px;height:14px;cursor:pointer}
+/* Poll timing */
+.poll-timing{display:none;align-items:center;gap:8px;font-size:11px;color:var(--text3);margin-bottom:14px;flex-wrap:wrap}
+.timing-bar-wrap{flex:1;min-width:100px;max-width:260px;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.timing-bar{height:100%;border-radius:3px;transition:width .4s}
+.timing-fast{background:var(--green)}.timing-ok{background:var(--amber)}.timing-slow{background:var(--red)}
+/* Stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--bg2);border-radius:var(--radius);padding:12px 14px;border:0.5px solid var(--border)}
+.stat .label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:600}
+.stat .value{font-size:24px;font-weight:600;line-height:1.1}
+.stat .sub{font-size:11px;color:var(--text3);margin-top:3px}
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tab{font-size:13px;padding:8px 14px;border:none;background:none;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500;white-space:nowrap}
+.tab.active{color:var(--text);border-bottom-color:var(--text)}
+.panel{display:none}.panel.active{display:block}
+/* Node cards */
+.node-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:12px}
+.node-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.node-name{font-size:15px;font-weight:600}
+.ok-pill{font-size:11px;padding:3px 9px;border-radius:var(--radius);background:var(--green-bg);color:var(--green-text);border:0.5px solid var(--green);font-weight:500}
+.err-pill{font-size:11px;padding:3px 9px;border-radius:var(--radius);background:var(--red-bg);color:var(--red-text);border:0.5px solid var(--red);font-weight:500}
+.kv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-bottom:14px}
+.kv-item{background:var(--bg2);border-radius:var(--radius);padding:8px 10px}
+.kv-item .kname{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:2px}
+.kv-item .kval{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.section-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+/* Sparkline */
+.spark-wrap{display:flex;align-items:flex-end;gap:2px;height:28px}
+.spark-bar{width:6px;border-radius:2px 2px 0 0;min-height:2px;flex-shrink:0}
+/* Load bars */
+.load-vis{display:flex;gap:10px;align-items:flex-end;height:48px;margin-bottom:14px}
+.lb-col{display:flex;flex-direction:column;align-items:center;gap:3px}
+.lb-bar{width:32px;border-radius:3px 3px 0 0;min-height:4px}
+.lb-label{font-size:10px;color:var(--text3)}
+.lb-val{font-size:11px;font-weight:600}
+/* Link tables */
+.link-table{width:100%;border-collapse:collapse;font-size:12px}
+.link-table th{text-align:left;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:5px 8px 7px;border-bottom:1px solid var(--border)}
+.link-table td{padding:7px 8px;border-bottom:0.5px solid var(--border);vertical-align:middle}
+.link-table tr:last-child td{border-bottom:none}
+.link-table tbody tr:hover td{background:var(--bg2)}
+.link-table tbody tr{cursor:pointer}
+.qbar{display:flex;align-items:center;gap:7px}
+.qbar-track{width:70px;height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;flex-shrink:0}
+.qbar-fill{height:100%;border-radius:3px}
+.q-good{background:var(--green)}.q-fair{background:var(--amber)}.q-poor{background:var(--red)}
+.routing-pill{display:inline-block;font-size:10px;padding:2px 8px;border-radius:var(--radius);font-weight:600}
+.rp-babel{background:var(--green-bg);color:var(--green-text)}.rp-olsr{background:var(--amber-bg);color:var(--amber-text)}
+.rp-babel-olsr{background:var(--blue-bg);color:var(--blue-text)}.rp-unknown{background:var(--bg3);color:var(--text3)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.neighbor-err{font-size:11px;color:var(--text3);font-style:italic}
+/* Link detail modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg);border-radius:var(--radius-lg);border:0.5px solid var(--border);width:100%;max-width:640px;max-height:85vh;overflow:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--border)}
+.modal-header h3{font-size:14px;font-weight:600}
+.modal-close{font-size:20px;background:none;border:none;cursor:pointer;color:var(--text3);line-height:1;padding:0 4px}
+.modal-body{padding:18px}
+.chart-wrap{position:relative;height:180px;margin-bottom:12px}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-bottom:8px}
+.chart-legend span{display:flex;align-items:center;gap:4px}
+/* Topology */
+.topo-wrap{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.topo-toolbar{padding:10px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topo-legend{padding:10px 16px;border-top:0.5px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3)}
+.topo-legend span{display:flex;align-items:center;gap:4px}
+/* Compare */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.compare-sel{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;font-size:12px;color:var(--text2);font-weight:500}
+.compare-col{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px}
+.compare-col h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)}
+.compare-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:0.5px solid var(--border);font-size:12px}
+.compare-row:last-child{border-bottom:none}
+.compare-row .cname{color:var(--text3)}
+.compare-row .cval{font-weight:600;font-family:ui-monospace,monospace}
+.cval-better{color:var(--green-text)}.cval-worse{color:var(--red-text)}
+/* Aim panel */
+.aim-panel{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.aim-header{padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.aim-header h2{font-size:15px;font-weight:600}
+.aim-sub{font-size:12px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.aim-status{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-green{background:var(--green)}.dot-amber{background:var(--amber)}.dot-red{background:var(--red)}
+.aim-body{padding:18px}
+.aim-metric{margin-bottom:20px}
+.aim-metric-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px}
+.aim-metric-name{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.aim-metric-val-row{display:flex;align-items:baseline;gap:6px}
+.aim-metric-val{font-size:28px;font-weight:600;line-height:1}
+.aim-metric-unit{font-size:13px;color:var(--text2)}
+.aim-delta{font-size:11px;padding:2px 8px;border-radius:var(--radius);font-weight:600}
+.delta-best{background:var(--green-bg);color:var(--green-text)}.delta-better{background:var(--blue-bg);color:var(--blue-text)}.delta-worse{background:var(--red-bg);color:var(--red-text)}
+.big-bar-track{height:10px;border-radius:5px;background:var(--bg3);overflow:hidden}
+.big-bar-fill{height:100%;border-radius:5px;transition:width .5s ease}
+.aim-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.aim-mini{background:var(--bg2);border-radius:var(--radius);padding:11px 13px;border:0.5px solid var(--border)}
+.aim-mini .mname{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:3px}
+.aim-mini .mval{font-size:20px;font-weight:600;line-height:1.1}
+.aim-mini .munit{font-size:12px;font-weight:400;color:var(--text2)}
+.aim-mini .msub{font-size:11px;color:var(--text3);margin-top:3px;min-height:14px}
+.best-bar{background:var(--bg2);border-radius:var(--radius);padding:10px 14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;border:0.5px solid var(--border)}
+.best-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.best-item .bname{color:var(--text3);margin-right:3px}.best-item .bval{font-weight:600}
+.warn-local{background:var(--red-bg);border:0.5px solid var(--red);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--red-text);margin-bottom:16px;font-weight:500}
+.warn-remote{background:var(--amber-bg);border:0.5px solid var(--amber);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--amber-text);margin-bottom:16px;font-weight:500}
+.aim-lock-btn{font-size:11px;padding:3px 10px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);border-radius:var(--radius);cursor:pointer;font-weight:500}
+.aim-lock-btn.locked{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber)}
+/* Map */
+.map-node-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px}
+.map-no-gps{font-size:13px;color:var(--text3);font-style:italic}
+select{font-size:12px;padding:4px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text);cursor:pointer}
+@media(max-width:700px){
+  .app{padding:10px 8px}.stat-grid{grid-template-columns:1fr 1fr;gap:8px}.stat .value{font-size:20px}
+  .kv-grid{grid-template-columns:1fr 1fr}.link-table{font-size:11px}.link-table th,.link-table td{padding:5px 5px}
+  .aim-grid{grid-template-columns:1fr 1fr}.aim-metric-val{font-size:22px}.cfg-apply{padding:8px 18px;font-size:13px}
+  .tab{padding:7px 10px;font-size:12px}.compare-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="4.5" r="3" fill="#1D9E75"/><circle cx="4" cy="17" r="2.5" fill="#378ADD"/>
+        <circle cx="18" cy="17" r="2.5" fill="#378ADD"/>
+        <line x1="11" y1="7.5" x2="5.2" y2="14.8" stroke="#888780" stroke-width="1.2"/>
+        <line x1="11" y1="7.5" x2="16.8" y2="14.8" stroke="#888780" stroke-width="1.2"/>
+        <line x1="6.5" y1="17" x2="15.5" y2="17" stroke="#888780" stroke-width="1.2"/>
+      </svg>
+      <h1>AREDN Mesh Metrics Dashboard</h1><span class="badge">v1.7.0</span>
+    </div>
+    <div class="topbar-right">
+      <span class="poll-ts" id="poll-ts">Not connected</span>
+      <button class="icon-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle dark/light mode">☀ Light</button>
+      <button class="icon-btn" onclick="discoverNodes()" id="discover-btn">⊕ Discover</button>
+      <button class="icon-btn" onclick="exportData()">↓ Export</button>
+    </div>
+  </div>
+
+  <div class="alert-banner alert-quality" id="alert-quality">
+    <span id="alert-quality-msg">⚠ Link quality alert</span>
+    <button class="alert-btn" onclick="dismissAlert('quality')">Dismiss</button>
+  </div>
+  <div class="alert-banner alert-down" id="alert-down">
+    <span id="alert-down-msg">⚠ Node offline</span>
+    <button class="alert-btn" onclick="dismissAlert('down')">Dismiss</button>
+  </div>
+  <div class="alert-banner" id="alert-rf" style="background:var(--blue-bg);color:var(--blue-text);border:0.5px solid var(--blue)">
+    <span id="alert-rf-msg">⚠ RF channel conflict</span>
+    <button class="alert-btn" onclick="document.getElementById('alert-rf').classList.remove('visible')">Dismiss</button>
+  </div>
+
+  <div class="live-cfg">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">
+      Enter node IPs or names — polls directly, no web server needed.
+      <span id="android-tip" style="display:none;color:var(--amber-text);font-weight:500">&#9888; On Android use the node IP (10.x.x.x). If polling fails, open this file via <strong>http://</strong> rather than from your downloads folder.</span>
+      <span id="desktop-tip">Names auto-append .local.mesh — on Android use the IP instead.</span>
+    </div>
+    <div id="cfg-node-rows">
+      <div class="cfg-node-row">
+        <input type="text" class="cfg-node-ip" placeholder="Node IP e.g. 10.x.x.x" style="width:min(260px,100%);font-family:ui-monospace,monospace;font-size:14px;padding:7px 10px"/>
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="addNodeRow()" style="font-size:12px;padding:5px 12px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);border-radius:var(--radius);cursor:pointer">+ Add node</button>
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:0.5px solid var(--border)">
+      <button class="cfg-apply" onclick="applyDirectConfig()">Start polling</button>
+      <button id="cfg-stop-btn" onclick="stopLive()" style="display:none;font-size:12px;padding:5px 12px;border:0.5px solid var(--red);background:var(--red-bg);color:var(--red-text);border-radius:var(--radius);cursor:pointer;font-weight:600">Stop</button>
+      <span style="font-size:11px;color:var(--text3);margin-left:4px">Refresh every</span>
+      <input type="number" id="cfg-direct-interval" value="5" min="1" max="3600" style="width:55px;font-size:12px;padding:4px 6px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text)"/>
+      <span style="font-size:11px;color:var(--text3)">s</span>
+      <button onclick="toggleAlertCfg()" class="icon-btn" style="margin-left:4px">🔔 Alerts</button>
+    </div>
+    <div class="alert-cfg" id="alert-cfg">
+      <div class="alert-cfg-row"><input type="checkbox" id="alert-q-on" checked/><label for="alert-q-on" style="cursor:pointer">Alert when link quality drops below</label><input type="number" id="alert-q-thresh" value="70" min="0" max="100"/><span>%</span></div>
+      <div class="alert-cfg-row"><input type="checkbox" id="alert-down-on" checked/><label for="alert-down-on" style="cursor:pointer">Alert when a node goes offline</label></div>
+      <div class="alert-cfg-row"><input type="checkbox" id="alert-sound-on"/><label for="alert-sound-on" style="cursor:pointer">Play a sound with alerts</label></div>
+    </div>
+    <div class="fetch-err" id="fetch-err"></div>
+  </div>
+
+  <div class="poll-timing" id="poll-timing">
+    <span>Last poll:</span>
+    <div class="timing-bar-wrap"><div class="timing-bar" id="timing-bar" style="width:0%"></div></div>
+    <span id="timing-label">—</span>
+    <span id="timing-note"></span>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="label">Nodes online</div><div class="value" id="s-nodes">—</div><div class="sub" id="s-nodes-sub">of 0 polled</div></div>
+    <div class="stat"><div class="label">Active links</div><div class="value" id="s-links">—</div><div class="sub">LQM neighbors</div></div>
+    <div class="stat"><div class="label">Avg quality</div><div class="value" id="s-qual">—</div><div class="sub">link quality</div></div>
+    <div class="stat"><div class="label">Best link</div><div class="value" style="font-size:18px;line-height:1.3" id="s-best">—</div><div class="sub" id="s-best-q"></div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('nodes',this)">Nodes</button>
+    <button class="tab" onclick="switchTab('links',this)">RF Links</button>
+    <button class="tab" onclick="switchTab('topology',this)">Topology</button>
+    <button class="tab" onclick="switchTab('compare',this)">Compare</button>
+    <button class="tab" onclick="switchTab('aim',this)">Antenna Aiming</button>
+    <button class="tab" onclick="switchTab('map',this)">Map</button>
+  </div>
+
+  <div class="panel active" id="panel-nodes">
+    <div id="nodes-container"><div style="padding:40px 0;text-align:center;color:var(--text3);font-size:13px">Enter node IPs above and click Start polling.</div></div>
+  </div>
+
+  <div class="panel" id="panel-links">
+    <div class="node-card">
+      <div class="node-header">
+        <span class="node-name">RF / LQM Link Table</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--text3)">Sort by</span>
+          <select id="link-sort" onchange="renderLinks()"><option value="quality">Quality</option><option value="signal">Signal</option><option value="ping">Ping</option><option value="snr">SNR</option></select>
+          <span style="font-size:11px;color:var(--text3);margin-left:6px">· click row for chart</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="link-table">
+          <thead><tr><th>Hostname</th><th>Quality</th><th>Trend</th><th>Ping</th><th>Signal</th><th>SNR local</th><th>SNR remote</th><th>Babel</th><th>Routing</th><th>Firmware</th></tr></thead>
+          <tbody id="link-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-topology">
+    <div class="topo-wrap">
+      <div class="topo-toolbar">
+        <span style="font-size:13px;font-weight:600">Mesh Topology</span>
+        <span style="font-size:11px;color:var(--text3)">links coloured by quality</span>
+        <button onclick="renderTopology()" class="icon-btn" style="margin-left:auto">↺ Refresh layout</button>
+      </div>
+      <div style="width:100%;overflow:auto;background:var(--bg)">
+        <canvas id="topo-canvas" width="800" height="440" style="display:block;max-width:100%"></canvas>
+      </div>
+      <div class="topo-legend">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green)"></span>≥75% quality</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber)"></span>40–74%</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red)"></span>&lt;40%</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue)"></span>Polled node</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text3)"></span>Neighbour only</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-compare">
+    <div class="node-card">
+      <div class="compare-sel">
+        Compare
+        <select id="cmp-a" onchange="renderCompare()"><option value="">— node A —</option></select>
+        <span style="color:var(--text3)">vs</span>
+        <select id="cmp-b" onchange="renderCompare()"><option value="">— node B —</option></select>
+      </div>
+      <div class="compare-grid" id="compare-grid">
+        <div style="padding:24px 0;text-align:center;color:var(--text3);font-size:13px;grid-column:1/-1">Select two nodes above to compare.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-aim">
+    <div class="aim-panel">
+      <div class="aim-header">
+        <div>
+          <h2>Antenna Aiming</h2>
+          <div class="aim-sub" id="aim-sub">
+            <select id="aim-node-sel" onchange="onAimSelChange()" style="font-size:12px;padding:3px 6px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text)"><option value="">— local node —</option></select>
+            <span style="color:var(--text3)">→</span>
+            <select id="aim-link-sel" onchange="onAimSelChange()" style="font-size:12px;padding:3px 6px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text)"><option value="">— neighbour —</option></select>
+            <button class="aim-lock-btn" id="aim-lock-btn" onclick="toggleAimLock()">Lock target</button>
+            <span id="aim-no-data" style="font-size:12px;color:var(--text3);display:none">Start polling to populate</span>
+          </div>
+        </div>
+        <div class="aim-status">
+          <span class="dot dot-amber" id="aim-dot"></span>
+          <span id="aim-status-text">Not connected</span>
+          <span style="color:var(--text3);margin-left:10px" id="aim-poll-label">poll #0</span>
+        </div>
+      </div>
+      <div class="aim-body">
+        <div id="aim-warn"><div style="font-size:13px;color:var(--text3);padding:8px 0">Start polling — the aiming display updates automatically.</div></div>
+        <div class="aim-metric">
+          <div class="aim-metric-row"><span class="aim-metric-name">Link Quality</span><div class="aim-metric-val-row"><span class="aim-metric-val" id="aim-q-val">—</span><span class="aim-metric-unit">%</span><span class="aim-delta" id="aim-q-delta"></span></div></div>
+          <div class="big-bar-track"><div class="big-bar-fill q-good" id="aim-q-bar" style="width:0%"></div></div>
+        </div>
+        <div class="aim-metric">
+          <div class="aim-metric-row"><span class="aim-metric-name">Ping Latency</span><div class="aim-metric-val-row"><span class="aim-metric-val" id="aim-p-val">—</span><span class="aim-metric-unit">ms</span><span class="aim-delta" id="aim-p-delta"></span></div></div>
+        </div>
+        <div class="aim-grid">
+          <div class="aim-mini"><div class="mname">Signal (RX)</div><div class="mval" id="aim-sig-val">— <span class="munit">dBm</span></div><div class="msub" id="aim-sig-delta"></div></div>
+          <div class="aim-mini"><div class="mname">SNR (local)</div><div class="mval" id="aim-snr-val">— <span class="munit">dB</span></div><div class="msub" id="aim-snr-delta"></div></div>
+          <div class="aim-mini"><div class="mname">SNR (remote)</div><div class="mval" id="aim-rsnr-val">— <span class="munit">dB</span></div><div class="msub" id="aim-rsnr-delta"></div></div>
+          <div class="aim-mini"><div class="mname">Babel Metric</div><div class="mval" id="aim-babel-val">—</div><div class="msub" id="aim-babel-delta"></div></div>
+        </div>
+        <div class="best-bar">
+          <span class="best-label">Best seen</span>
+          <span class="best-item"><span class="bname">Quality</span><span class="bval" id="b-q">—</span></span>
+          <span class="best-item"><span class="bname">Signal</span><span class="bval" id="b-sig">—</span></span>
+          <span class="best-item"><span class="bname">SNR</span><span class="bval" id="b-snr">—</span></span>
+          <span class="best-item"><span class="bname">Rev SNR</span><span class="bval" id="b-rsnr">—</span></span>
+          <span class="best-item"><span class="bname">Babel</span><span class="bval" id="b-babel">—</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-map">
+    <div id="map-node-list"></div>
+  </div>
+</div>
+
+<!-- LINK DETAIL MODAL -->
+<div class="modal-overlay" id="link-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Link Detail</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="chart-legend">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1D9E75"></span>Quality %</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#378ADD"></span>Ping ms (scaled)</span>
+      </div>
+      <div class="chart-wrap"><canvas id="detail-chart" style="width:100%;height:100%"></canvas></div>
+      <div id="modal-stats" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const DEMO={nodes:[]};
+let liveTimer=null,_prevNodeNames=new Set(),_alertQDismissed=false,_alertDownDismissed=false;
+const _linkHistory={};
+let AS={q:null,ping:null,sig:null,snr:null,rsnr:null,babel:null,bq:null,bping:null,bsig:null,bsnr:null,brsnr:null,bbabel:null,poll:0,mode:'ok',locked:false};
+let _aimLastResults=[];
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const rpClass=r=>r==='babel'?'rp-babel':r==='olsr'?'rp-olsr':r==='babel+olsr'?'rp-babel-olsr':'rp-unknown';
+const rpLabel=r=>r==='babel'?'Babel':r==='olsr'?'OLSR':r==='babel+olsr'?'Babel+OLSR':'?';
+const qClass=q=>q==null?'q-poor':q>=75?'q-good':q>=40?'q-fair':'q-poor';
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');document.getElementById('panel-'+name).classList.add('active');
+  if(name==='map')renderMap();if(name==='topology')renderTopology();if(name==='compare')renderCompare();
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function recordHistory(hostname,q,ping){
+  if(!_linkHistory[hostname])_linkHistory[hostname]=[];
+  _linkHistory[hostname].push({q,ping:ping!=null?ping*1000:null,ts:Date.now()});
+  if(_linkHistory[hostname].length>40)_linkHistory[hostname].shift();
+}
+
+function sparkline(hostname){
+  const h=_linkHistory[hostname];
+  if(!h||h.length<2)return '<span style="font-size:10px;color:var(--text3)">—</span>';
+  const max=Math.max(...h.map(v=>v.q||0),1);
+  return`<div class="spark-wrap">${h.map(v=>{const p=Math.max(4,Math.round(((v.q||0)/max)*24));const c=(v.q||0)>=75?'var(--green)':(v.q||0)>=40?'var(--amber)':'var(--red)';return`<div class="spark-bar" style="height:${p}px;background:${c}"></div>`;}).join('')}</div>`;
+}
+
+// ── Link detail chart ─────────────────────────────────────────────────────────
+function openLinkDetail(hostname){
+  const h=_linkHistory[hostname]||[];
+  document.getElementById('modal-title').textContent=hostname+' — Link History';
+  document.getElementById('link-modal').classList.add('open');
+  const canvas=document.getElementById('detail-chart');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.offsetWidth||580,H=180;
+  canvas.width=W;canvas.height=H;ctx.clearRect(0,0,W,H);
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark'||(!document.documentElement.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const gc=isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#666':'#999';
+  if(h.length<2){ctx.fillStyle=tc;ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('Not enough data yet.',W/2,H/2);document.getElementById('modal-stats').textContent='';return;}
+  const qs=h.map(v=>v.q||0),pings=h.map(v=>v.ping).filter(v=>v!=null);
+  const maxP=pings.length?Math.max(...pings,1):1;
+  const pad={t:10,b:26,l:34,r:12},cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  // grid
+  ctx.strokeStyle=gc;ctx.lineWidth=1;
+  [0,25,50,75,100].forEach(v=>{const y=pad.t+cH-(v/100)*cH;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cW,y);ctx.stroke();ctx.fillStyle=tc;ctx.font='9px sans-serif';ctx.textAlign='right';ctx.fillText(v+'%',pad.l-3,y+3);});
+  // quality fill
+  ctx.globalAlpha=0.12;ctx.fillStyle='#1D9E75';ctx.beginPath();
+  qs.forEach((v,i)=>{const x=pad.l+(i/(h.length-1))*cW,y=pad.t+cH-(v/100)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(pad.l+cW,pad.t+cH);ctx.lineTo(pad.l,pad.t+cH);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+  // quality line
+  ctx.strokeStyle='#1D9E75';ctx.lineWidth=2;ctx.beginPath();
+  qs.forEach((v,i)=>{const x=pad.l+(i/(h.length-1))*cW,y=pad.t+cH-(v/100)*cH;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+  // ping line
+  if(pings.length>1){
+    ctx.strokeStyle='#378ADD';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();let pl=0;
+    h.forEach((v,i)=>{if(v.ping==null)return;const x=pad.l+(i/(h.length-1))*cW,y=pad.t+cH-(v.ping/maxP)*cH;pl===0?ctx.moveTo(x,y):ctx.lineTo(x,y);pl++;});
+    ctx.stroke();ctx.setLineDash([]);
+  }
+  // x labels
+  ctx.fillStyle=tc;ctx.font='9px sans-serif';ctx.textAlign='center';
+  const step=Math.max(1,Math.floor(h.length/5));
+  h.forEach((v,i)=>{if(i%step===0){const x=pad.l+(i/(h.length-1))*cW;ctx.fillText(new Date(v.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),x,H-4);}});
+  // stats
+  const avgQ=Math.round(qs.reduce((s,v)=>s+v,0)/qs.length),minQ=Math.min(...qs),maxQ=Math.max(...qs);
+  const avgP=pings.length?Math.round(pings.reduce((s,v)=>s+v,0)/pings.length):null;
+  document.getElementById('modal-stats').innerHTML=`<span style="margin-right:14px">Avg quality: <strong>${avgQ}%</strong></span><span style="margin-right:14px">Range: <strong>${minQ}%–${maxQ}%</strong></span>${avgP!=null?`<span style="margin-right:14px">Avg ping: <strong>${avgP} ms</strong></span>`:''}<span style="color:var(--text3)">${h.length} samples</span>`;
+}
+function closeModal(){document.getElementById('link-modal').classList.remove('open');}
+
+// ── Topology ──────────────────────────────────────────────────────────────────
+function renderTopology(){
+  const canvas=document.getElementById('topo-canvas'),ctx=canvas.getContext('2d');
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark'||(!document.documentElement.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const nodeMap={},edges=[];
+  DEMO.nodes.forEach(nm=>{
+    const n=nm.health.node;
+    if(!nodeMap[n])nodeMap[n]={name:n,polled:true};
+    nm.links.forEach(lk=>{
+      if(!nodeMap[lk.hostname])nodeMap[lk.hostname]={name:lk.hostname,polled:false};
+      const key=[n,lk.hostname].sort().join('|');
+      if(!edges.find(e=>e.key===key))edges.push({key,a:n,b:lk.hostname,quality:lk.quality});
+    });
+  });
+  const nodes=Object.values(nodeMap);
+  const W=canvas.offsetWidth||800,H=440;
+  canvas.width=W;canvas.height=H;ctx.clearRect(0,0,W,H);
+  if(!nodes.length){ctx.fillStyle=isDark?'#888780':'#888780';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('Start polling to see topology.',W/2,H/2);return;}
+  // Init circular layout
+  nodes.forEach((nd,i)=>{const a=(i/nodes.length)*Math.PI*2-Math.PI/2;nd.x=W/2+Math.cos(a)*Math.min(W,H)*0.35;nd.y=H/2+Math.sin(a)*Math.min(W,H)*0.35;nd.vx=0;nd.vy=0;});
+  // Force iterations
+  const ideal=120;
+  for(let it=0;it<80;it++){
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y,d=Math.max(Math.sqrt(dx*dx+dy*dy),1),f=4000/(d*d);nodes[i].vx-=f*dx/d;nodes[i].vy-=f*dy/d;nodes[j].vx+=f*dx/d;nodes[j].vy+=f*dy/d;}
+    edges.forEach(e=>{const a=nodeMap[e.a],b=nodeMap[e.b];if(!a||!b)return;const dx=b.x-a.x,dy=b.y-a.y,d=Math.max(Math.sqrt(dx*dx+dy*dy),1),f=(d-ideal)*0.05;a.vx+=f*dx/d;a.vy+=f*dy/d;b.vx-=f*dx/d;b.vy-=f*dy/d;});
+    nodes.forEach(nd=>{nd.x=Math.max(50,Math.min(W-50,nd.x+nd.vx*0.4));nd.y=Math.max(36,Math.min(H-36,nd.y+nd.vy*0.4));nd.vx*=0.7;nd.vy*=0.7;});
+  }
+  // Draw edges
+  edges.forEach(e=>{const a=nodeMap[e.a],b=nodeMap[e.b];if(!a||!b)return;const q=e.quality;ctx.strokeStyle=q==null?'#888780':q>=75?'#1D9E75':q>=40?'#EF9F27':'#E24B4A';ctx.lineWidth=q==null?1:Math.max(1,Math.min(5,(q/100)*5));ctx.globalAlpha=q==null?0.3:0.65;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1;if(q!=null){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;ctx.fillStyle=isDark?'#b4b2a9':'#5f5e5a';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(Math.round(q)+'%',mx,my-4);}});
+  // Draw nodes
+  nodes.forEach(nd=>{const r=nd.polled?20:14;ctx.beginPath();ctx.arc(nd.x,nd.y,r,0,Math.PI*2);ctx.fillStyle=nd.polled?(isDark?'#185FA5':'#378ADD'):(isDark?'#444441':'#888780');ctx.fill();ctx.strokeStyle=isDark?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.12)';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=isDark?'#f0efeb':'#ffffff';ctx.font=(nd.polled?'600 ':'')+'11px sans-serif';ctx.textAlign='center';const parts=nd.name.split('-');if(parts.length>1&&nd.name.length>12){ctx.fillText(parts[0],nd.x,nd.y-3);ctx.fillText(parts.slice(1).join('-'),nd.x,nd.y+9);}else{ctx.fillText(nd.name,nd.x,nd.y+4);}});
+}
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+function populateCompareSelectors(){
+  const names=DEMO.nodes.filter(n=>!n.error).map(n=>n.health.node);
+  ['cmp-a','cmp-b'].forEach(id=>{const sel=document.getElementById(id),prev=sel.value;sel.innerHTML='<option value="">— select node —</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');if(names.includes(prev))sel.value=prev;});
+}
+function renderCompare(){
+  const aName=document.getElementById('cmp-a').value,bName=document.getElementById('cmp-b').value;
+  const grid=document.getElementById('compare-grid');
+  if(!aName||!bName){grid.innerHTML='<div style="padding:24px 0;text-align:center;color:var(--text3);font-size:13px;grid-column:1/-1">Select two nodes above to compare.</div>';return;}
+  if(aName===bName){grid.innerHTML='<div style="padding:14px;color:var(--amber-text);font-size:13px;grid-column:1/-1">Select two different nodes.</div>';return;}
+  const nmA=DEMO.nodes.find(n=>n.health.node===aName),nmB=DEMO.nodes.find(n=>n.health.node===bName);
+  if(!nmA||!nmB)return;
+  const lq=nm=>{const l=nm.links.filter(l=>l.quality!=null);return l.length?Math.round(l.reduce((s,x)=>s+x.quality,0)/l.length)+'%':'—';};
+  const bp=nm=>{const l=nm.links.filter(l=>l.ping_success_time!=null);return l.length?Math.round(Math.min(...l.map(x=>x.ping_success_time))*1000)+' ms':'—';};
+  const metrics=[
+    {label:'Uptime',va:nmA.health.uptime,vb:nmB.health.uptime,cmp:null},
+    {label:'Free RAM',va:nmA.health.free_memory_kb?Math.round(nmA.health.free_memory_kb/1024)+' MB':'—',vb:nmB.health.free_memory_kb?Math.round(nmB.health.free_memory_kb/1024)+' MB':'—',cmp:null},
+    {label:'Load 1m',va:nmA.health.load_1m.toFixed(2),vb:nmB.health.load_1m.toFixed(2),cmp:'lower',na:nmA.health.load_1m,nb:nmB.health.load_1m},
+    {label:'Load 5m',va:nmA.health.load_5m.toFixed(2),vb:nmB.health.load_5m.toFixed(2),cmp:'lower',na:nmA.health.load_5m,nb:nmB.health.load_5m},
+    {label:'Load 15m',va:nmA.health.load_15m.toFixed(2),vb:nmB.health.load_15m.toFixed(2),cmp:'lower',na:nmA.health.load_15m,nb:nmB.health.load_15m},
+    {label:'Tunnels',va:nmA.health.tunnel_count,vb:nmB.health.tunnel_count,cmp:null},
+    {label:'LQM links',va:nmA.links.length,vb:nmB.links.length,cmp:null},
+    {label:'Avg quality',va:lq(nmA),vb:lq(nmB),cmp:null},
+    {label:'Best ping',va:bp(nmA),vb:bp(nmB),cmp:null},
+    {label:'Firmware',va:nmA.health.firmware_version||'?',vb:nmB.health.firmware_version||'?',cmp:null},
+    {label:'Routing',va:rpLabel(nmA.health.routing_protocol),vb:rpLabel(nmB.health.routing_protocol),cmp:null},
+  ];
+  const col=(nm,metrics,isA)=>`<div class="compare-col"><h3>${nm}</h3>${metrics.map(m=>{let cls='';if(m.cmp==='lower'&&m.na!=null&&m.nb!=null){const mv=isA?m.na:m.nb,ov=isA?m.nb:m.na;cls=mv<ov?'cval-better':mv>ov?'cval-worse':'';}return`<div class="compare-row"><span class="cname">${m.label}</span><span class="cval ${cls}">${isA?m.va:m.vb}</span></div>`;}).join('')}</div>`;
+  grid.innerHTML=col(aName,metrics,true)+col(bName,metrics,false);
+}
+
+// ── Render nodes ──────────────────────────────────────────────────────────────
+function renderNodes(){
+  const c=document.getElementById('nodes-container');c.innerHTML='';
+  if(!DEMO.nodes.length){c.innerHTML='<div style="padding:40px 0;text-align:center;color:var(--text3);font-size:13px">Enter node IPs above and click Start polling.</div>';return;}
+  DEMO.nodes.forEach(nm=>{
+    const h=nm.health,maxL=Math.max(h.load_1m,h.load_5m,h.load_15m,1);
+    const loadBars=[h.load_1m,h.load_5m,h.load_15m].map((l,i)=>{const p=Math.min(100,(l/maxL)*100),col=l>1.5?'var(--red)':l>0.8?'var(--amber)':'var(--green)';return`<div class="lb-col"><div class="lb-bar" style="height:${Math.max(4,p*0.36)}px;background:${col}"></div><div class="lb-label">${['1m','5m','15m'][i]}</div><div class="lb-val">${l.toFixed(2)}</div></div>`;}).join('');
+    const hasSNR=nm.links.some(l=>l.snr!=null),meshrf=h.meshrf||{};
+    const div=document.createElement('div');div.className='node-card';
+    div.innerHTML=`<div class="node-header"><span class="node-name">${h.node}</span><span class="${nm.error?'err-pill':'ok-pill'}">${nm.error?'error':'● online'}</span></div>
+      ${nm.error?`<div style="font-size:13px;color:var(--red-text);margin-bottom:10px;padding:8px 10px;background:var(--red-bg);border-radius:var(--radius)">${nm.error}</div>`:''}
+      <div class="kv-grid">
+        <div class="kv-item"><div class="kname">Model</div><div class="kval">${h.model||'?'}</div></div>
+        <div class="kv-item"><div class="kname">Firmware</div><div class="kval mono">${h.firmware_version||'?'}</div></div>
+        <div class="kv-item"><div class="kname">Routing</div><div class="kval"><span class="routing-pill ${rpClass(h.routing_protocol)}">${rpLabel(h.routing_protocol)}</span></div></div>
+        <div class="kv-item"><div class="kname">Uptime</div><div class="kval">${h.uptime}</div></div>
+        <div class="kv-item"><div class="kname">Free RAM</div><div class="kval">${h.free_memory_kb?Math.round(h.free_memory_kb/1024)+' MB':'n/a'}</div></div>
+        <div class="kv-item"><div class="kname">Tunnels</div><div class="kval">${h.tunnel_count}</div></div>
+        ${h.lat?`<div class="kv-item"><div class="kname">Location</div><div class="kval mono">${h.lat.toFixed(4)}, ${h.lon.toFixed(4)}</div></div>`:''}
+        ${meshrf.freq?`<div class="kv-item"><div class="kname">RF channel</div><div class="kval">${meshrf.channel||'?'} · ${meshrf.freq} MHz · ${meshrf.chanbw||'?'} MHz BW</div></div>`:''}
+        ${h.noise_floor!=null?`<div class="kv-item"><div class="kname">Noise floor</div><div class="kval mono">${h.noise_floor} dBm</div></div>`:''}
+        ${meshrf.ssid?`<div class="kv-item"><div class="kname">SSID</div><div class="kval mono">${meshrf.ssid}</div></div>`:''}
+        ${meshrf.antenna&&meshrf.antenna.description?`<div class="kv-item"><div class="kname">Antenna</div><div class="kval">${meshrf.antenna.description} (${meshrf.antenna.gain} dBi)</div></div>`:''}
+        <div class="kv-item"><div class="kname">API version</div><div class="kval mono">${h.api_version||'?'}</div></div>
+      </div>
+      <div class="section-label">Load average</div>
+      <div class="load-vis">${loadBars}<span style="font-size:11px;color:var(--text3);align-self:center;margin-left:6px">load avg</span></div>
+      ${nm.links.length?`<div class="section-label">${nm.links.length} LQM neighbor${nm.links.length!==1?'s':''}</div>
+        <div style="overflow-x:auto"><table class="link-table">
+          <thead><tr><th>Hostname</th><th>Quality</th><th>Ping</th><th>Signal</th>${hasSNR?'<th>SNR</th>':''}<th>Routing</th><th>Firmware</th></tr></thead>
+          <tbody>${nm.links.map(lk=>{const q=lk.quality,ping=lk.ping_success_time?(lk.ping_success_time*1000).toFixed(1)+' ms':'?';return`<tr>
+            <td><span style="font-weight:600">${lk.hostname}</span>${(lk.ip&&lk.ip.startsWith('10.'))?'<br><span style="font-size:10px;color:var(--text3)" class="mono">'+lk.ip+'</span>':''}</td>
+            <td><div class="qbar"><div class="qbar-track"><div class="qbar-fill ${qClass(q)}" style="width:${q||0}%"></div></div><span>${q!=null?Math.round(q)+'%':'?'}</span></div></td>
+            <td class="mono" style="color:var(--text2)">${ping}</td>
+            <td class="mono" style="color:var(--text2)">${lk.signal!=null?lk.signal+' dBm':'—'}</td>
+            ${hasSNR?`<td class="mono" style="color:var(--text2)">${lk.snr!=null?lk.snr+' dB':'—'}</td>`:''}
+            <td>${lk.neighbor_error?'<span class="neighbor-err">'+lk.neighbor_error+'</span>':'<span class="routing-pill '+rpClass(lk.neighbor_routing)+'">'+rpLabel(lk.neighbor_routing)+'</span>'}</td>
+            <td style="color:var(--text3);font-size:11px" class="mono">${lk.neighbor_firmware||'—'}</td>
+          </tr>`;}).join('')}</tbody></table></div>`
+        :'<div style="font-size:13px;color:var(--text3)">No LQM neighbors visible.</div>'}`;
+    c.appendChild(div);
+  });
+}
+
+function renderLinks(){
+  const key=document.getElementById('link-sort').value,all=[];
+  DEMO.nodes.forEach(nm=>nm.links.forEach(lk=>all.push({...lk,_node:nm.health.node})));
+  all.sort((a,b)=>key==='quality'?(b.quality||0)-(a.quality||0):key==='signal'?(b.signal||-999)-(a.signal||-999):key==='ping'?(a.ping_success_time||999)-(b.ping_success_time||999):(b.snr||0)-(a.snr||0));
+  document.getElementById('link-tbody').innerHTML=all.map(lk=>{const q=lk.quality,ping=lk.ping_success_time?(lk.ping_success_time*1000).toFixed(1):'-';
+    return`<tr onclick="openLinkDetail('${lk.hostname}')">
+      <td><span style="font-weight:600">${lk.hostname}</span><br><span style="font-size:10px;color:var(--text3)" class="mono">via ${lk._node}${lk.ip&&lk.ip.startsWith('10.')?' · '+lk.ip:''}</span></td>
+      <td><div class="qbar"><div class="qbar-track"><div class="qbar-fill ${qClass(q)}" style="width:${q||0}%"></div></div><span>${q!=null?Math.round(q)+'%':'?'}</span></div></td>
+      <td>${sparkline(lk.hostname)}</td>
+      <td class="mono" style="color:var(--text2)">${ping} ms</td>
+      <td class="mono" style="color:var(--text2)">${lk.signal!=null?lk.signal+' dBm':'—'}</td>
+      <td class="mono" style="color:var(--text2)">${lk.snr!=null?lk.snr+' dB':'—'}</td>
+      <td class="mono" style="color:var(--text2)">${lk.rev_snr!=null?lk.rev_snr+' dB':'—'}</td>
+      <td class="mono" style="color:var(--text2)">${lk.babel_metric!=null?lk.babel_metric:'—'}</td>
+      <td>${lk.neighbor_error?'<span class="neighbor-err">'+lk.neighbor_error+'</span>':'<span class="routing-pill '+rpClass(lk.neighbor_routing)+'">'+rpLabel(lk.neighbor_routing)+'</span>'}</td>
+      <td style="color:var(--text3);font-size:11px" class="mono">${lk.neighbor_firmware||'—'}</td>
+    </tr>`;}).join('');
+}
+
+function updateStats(){
+  if(!DEMO.nodes.length){['s-nodes','s-links','s-qual','s-best'].forEach(id=>document.getElementById(id).textContent='—');document.getElementById('s-best-q').textContent='';document.getElementById('s-nodes-sub').textContent='of 0 polled';return;}
+  const online=DEMO.nodes.filter(n=>!n.error).length,all=DEMO.nodes.flatMap(n=>n.links);
+  const qs=all.filter(l=>l.quality!=null),avg=qs.reduce((s,l)=>s+l.quality,0)/(qs.length||1);
+  const best=all.reduce((b,l)=>(l.quality||0)>(b.quality||0)?l:b,all[0]||{});
+  document.getElementById('s-nodes').textContent=online;document.getElementById('s-nodes-sub').textContent='of '+DEMO.nodes.length+' polled';
+  document.getElementById('s-links').textContent=all.length;document.getElementById('s-qual').textContent=qs.length?Math.round(avg)+'%':'—';
+  document.getElementById('s-best').textContent=best.hostname||'—';document.getElementById('s-best-q').textContent=best.quality!=null?Math.round(best.quality)+'% quality':'';
+}
+
+// ── Poll timing ───────────────────────────────────────────────────────────────
+function updateTimingBar(ms){
+  const interval=Math.max(1,parseInt(document.getElementById('cfg-direct-interval').value)||5)*1000;
+  const pct=Math.min(100,Math.round((ms/interval)*100));
+  const bar=document.getElementById('timing-bar');bar.style.width=pct+'%';
+  bar.className='timing-bar '+(pct<30?'timing-fast':pct<70?'timing-ok':'timing-slow');
+  document.getElementById('timing-label').textContent=ms<1000?ms+' ms':(ms/1000).toFixed(1)+'s';
+  document.getElementById('timing-note').textContent=pct>=80?'⚠ slow — consider a longer interval':pct>=50?'moderate':'';
+  document.getElementById('poll-timing').style.display='flex';
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+function checkAlerts(results){
+  const qOn=document.getElementById('alert-q-on').checked,downOn=document.getElementById('alert-down-on').checked,soundOn=document.getElementById('alert-sound-on').checked,thresh=parseFloat(document.getElementById('alert-q-thresh').value)||70;
+  if(qOn&&!_alertQDismissed){const bad=results.flatMap(nm=>nm.links).filter(lk=>lk.quality!=null&&lk.quality<thresh);if(bad.length){document.getElementById('alert-quality-msg').textContent='⚠ Low link quality: '+bad.map(l=>l.hostname+' ('+Math.round(l.quality)+'%)').join(', ');document.getElementById('alert-quality').classList.add('visible');if(soundOn)playBeep(440,0.3);}else{document.getElementById('alert-quality').classList.remove('visible');_alertQDismissed=false;}}
+  if(downOn&&!_alertDownDismissed){const cur=new Set(results.filter(n=>!n.error).map(n=>n.health.node)),down=[..._prevNodeNames].filter(n=>!cur.has(n));if(down.length){document.getElementById('alert-down-msg').textContent='⚠ Node offline: '+down.join(', ');document.getElementById('alert-down').classList.add('visible');if(soundOn)playBeep(220,0.5);}_prevNodeNames=cur;}else{_prevNodeNames=new Set(results.filter(n=>!n.error).map(n=>n.health.node));}
+}
+function dismissAlert(type){if(type==='quality'){_alertQDismissed=true;document.getElementById('alert-quality').classList.remove('visible');}if(type==='down'){_alertDownDismissed=true;document.getElementById('alert-down').classList.remove('visible');}}
+function playBeep(f,d){try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=f;g.gain.setValueAtTime(0.15,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function toggleAlertCfg(){document.getElementById('alert-cfg').classList.toggle('open');}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+function renderMap(){
+  const el=document.getElementById('map-node-list');
+  if(!DEMO.nodes.length){el.innerHTML='<div style="padding:30px 0;text-align:center;color:var(--text3);font-size:13px">Start polling to see node locations.</div>';return;}
+  el.innerHTML=DEMO.nodes.map(nm=>{const h=nm.health,gps=h.lat&&h.lon;return`<div class="map-node-card">
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px">${h.node}</div>
+    ${gps?`<div style="font-size:11px;color:var(--text3);font-family:ui-monospace,monospace">${h.lat.toFixed(5)}, ${h.lon.toFixed(5)}</div>
+      <div style="margin-top:6px;display:flex;gap:10px"><a href="https://www.openstreetmap.org/?mlat=${h.lat}&mlon=${h.lon}&zoom=15" target="_blank" style="font-size:11px;color:var(--blue-text)">OpenStreetMap ↗</a><a href="https://maps.google.com/?q=${h.lat},${h.lon}" target="_blank" style="font-size:11px;color:var(--blue-text)">Google Maps ↗</a></div>`:'<div class="map-no-gps">No GPS configured</div>'}
+    ${h.gridsquare?`<div style="font-size:11px;color:var(--text3);margin-top:3px">Grid: ${h.gridsquare}</div>`:''}
+    ${h.description?`<div style="font-size:11px;color:var(--text2);margin-top:3px">${h.description}</div>`:''}
+  </div>`;}).join('');
+}
+
+// ── Export / Discovery ────────────────────────────────────────────────────────
+function exportData(){if(!DEMO.nodes.length){alert('No data — start polling first.');return;}const b=new Blob([JSON.stringify(DEMO.nodes,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='aredn_metrics_'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.json';a.click();}
+
+async function discoverNodes(){
+  const entries=[...document.querySelectorAll('.cfg-node-ip')].map(i=>i.value.trim()).filter(Boolean);
+  if(!entries.length){showFetchErr('Enter a seed node IP first.');return;}
+  const seed=entries[0],isIP=/^[\d.]+$/.test(seed),seedHost=isIP?seed:(seed.includes('.')?seed:seed+'.local.mesh');
+  document.getElementById('discover-btn').textContent='⊕ Discovering…';
+  try{
+    let data;try{data=await fetchJSONGlobal('http://'+seedHost+'/a/sysinfo?hosts=1');}catch{data=await fetchJSONGlobal('http://'+seedHost+'/cgi-bin/sysinfo.json?hosts=1');}
+    const NON=['GXP','GXV','GXW','GRP','HT7','HT8','SPA','CP-','CAM','NVR','IPCAM','AXIS','RPI','RASPI','VOIP','PHONE','FAX','PRINTER','AP-'],GEN=['prometheus','grafana','meshchat','raspberry','ubuntu','localhost','server','desktop','laptop','nas','router'];
+    const nodeHosts=(data.hosts||[]).filter(h=>{const u=(h.name||'').toUpperCase();return h.name&&h.name.includes('-')&&!NON.some(p=>u.includes(p))&&!GEN.some(p=>h.name.toLowerCase().includes(p));});
+    if(!nodeHosts.length){showFetchErr('No mesh nodes found.');return;}
+    const container=document.getElementById('cfg-node-rows');container.innerHTML='';
+    nodeHosts.forEach((h,i)=>{
+      const row=document.createElement('div');row.className='cfg-node-row';row.style.cssText='flex-direction:column;align-items:flex-start;gap:4px';
+      if(h.name){const lbl=document.createElement('span');lbl.textContent=h.name;lbl.style.cssText='font-size:12px;font-weight:600;color:var(--text)';row.appendChild(lbl);}
+      const ir=document.createElement('div');ir.style.cssText='display:flex;align-items:center;gap:8px;width:100%';
+      const inp=document.createElement('input');inp.type='text';inp.className='cfg-node-ip';inp.style.cssText='width:min(260px,100%);font-family:ui-monospace,monospace;font-size:13px;padding:6px 10px';inp.value=h.ip||h.name;inp.placeholder='Node IP';inp.dataset.nodeName=h.name||'';ir.appendChild(inp);
+      if(i>0){const rm=document.createElement('button');rm.textContent='Remove';rm.style.cssText='font-size:11px;padding:4px 8px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text3);border-radius:var(--radius);cursor:pointer';rm.onclick=()=>row.remove();ir.appendChild(rm);}
+      row.appendChild(ir);container.appendChild(row);
+    });
+    hideFetchErr();const fe=document.getElementById('fetch-err');fe.textContent='Found '+nodeHosts.length+' node(s). Click Start polling.';fe.classList.add('visible');fe.style.background='var(--green-bg)';fe.style.color='var(--green-text)';fe.style.borderColor='var(--green)';
+  }catch(e){showFetchErr('Discovery failed: '+e.message);}
+  document.getElementById('discover-btn').textContent='⊕ Discover';
+}
+
+async function fetchJSONGlobal(url){
+  try{const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),10000);const r=await fetch(url,{signal:ctrl.signal});clearTimeout(tid);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
+  catch(fetchErr){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',url,true);xhr.timeout=10000;xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('JSON parse error'));}}else{reject(new Error('HTTP '+xhr.status));}};xhr.onerror=()=>reject(new Error('Network error'));xhr.ontimeout=()=>reject(new Error('Timed out'));xhr.send();});}
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+function addNodeRow(){const row=document.createElement('div');row.className='cfg-node-row';row.innerHTML='<input type="text" class="cfg-node-ip" placeholder="Node IP e.g. 10.x.x.x" style="width:min(260px,100%);font-family:ui-monospace,monospace;font-size:14px;padding:7px 10px"/><button onclick="this.parentElement.remove()" style="font-size:11px;padding:4px 8px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text3);border-radius:var(--radius);cursor:pointer">Remove</button>';document.getElementById('cfg-node-rows').appendChild(row);}
+
+function applyDirectConfig(){
+  hideFetchErr();
+  const secs=Math.max(1,parseInt(document.getElementById('cfg-direct-interval').value)||5);
+  stopLive();_alertQDismissed=false;_alertDownDismissed=false;
+  const inputs=[...document.querySelectorAll('.cfg-node-ip')].filter(i=>i.value.trim());
+  if(!inputs.length){showFetchErr('Enter at least one node IP or name.');return;}
+  const nodes=inputs.map(inp=>{const entry=inp.value.trim(),isIP=/^[\d.]+$/.test(entry),host=isIP?entry:(entry.includes('.')?entry:entry+'.local.mesh');return{ip:host,name:inp.dataset.nodeName||entry};});
+  pollNodes(nodes);liveTimer=setInterval(()=>pollNodes(nodes),secs*1000);
+  document.getElementById('cfg-stop-btn').style.display='inline-block';
+}
+
+function stopLive(){if(liveTimer){clearInterval(liveTimer);liveTimer=null;}const sb=document.getElementById('cfg-stop-btn');if(sb)sb.style.display='none';document.getElementById('poll-timing').style.display='none';}
+function showFetchErr(msg){const e=document.getElementById('fetch-err');e.textContent=msg;e.classList.add('visible');e.style.background='';e.style.color='';e.style.borderColor='';}
+function hideFetchErr(){document.getElementById('fetch-err').classList.remove('visible');}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
+async function pollNodes(nodes){
+  const t0=Date.now();setLiveIndicator('polling');
+  const results=await Promise.all(nodes.map(n=>pollOneNode(n.ip,n.name)));
+  DEMO.nodes=results;
+  results.forEach(nm=>nm.links.forEach(lk=>{if(lk.quality!=null)recordHistory(lk.hostname,lk.quality,lk.ping_success_time);}));
+  refreshAll();updateAimFromLive(results);checkAlerts(results);updateTimingBar(Date.now()-t0);populateCompareSelectors();checkRFConflicts(results);
+  setLiveIndicator('ok');
+}
+
+async function pollOneNode(ip,label){
+  const TIMEOUT=10000;
+  async function fetchJSON(url){
+    try{const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),TIMEOUT);const r=await fetch(url,{signal:ctrl.signal});clearTimeout(tid);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
+    catch(fetchErr){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',url,true);xhr.timeout=TIMEOUT;xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){try{resolve(JSON.parse(xhr.responseText));}catch(e){reject(new Error('JSON parse error'));}}else{reject(new Error('HTTP '+xhr.status));}};xhr.onerror=()=>reject(new Error('Network error — check node IP and that your device is on the mesh network'));xhr.ontimeout=()=>reject(new Error('Timed out'));xhr.send();});}
+  }
+  try{
+    let data;try{data=await fetchJSON('http://'+ip+'/a/sysinfo?lqm=1');}catch{data=await fetchJSON('http://'+ip+'/cgi-bin/sysinfo.json?lqm=1');}
+    const det=data.node_details||{},sys=data.sysinfo||{},loads=sys.loads||[0,0,0],tun=data.tunnels||{},mrf=data.meshrf||{},av=String(data.api_version||''),fw=det.firmware_version||'';
+    let routing='unknown';if(fw){if(/^\d{8}/.test(fw))routing='babel';else{const m=fw.match(/^(\d+)\.(\d+)/);if(m){const[,maj,min]=[...m].map(Number);routing=maj>3||(maj===3&&min>=23)?'babel':maj===3&&min===22?'babel+olsr':'olsr';}}}else if(av.startsWith('2.'))routing='babel';else if(av.startsWith('1.'))routing='olsr';
+    // Fetch noise floor from Prometheus metrics endpoint (best-effort)
+    let noise_floor = null;
+    try {
+      const mtext = await (await fetch('http://'+ip+'/cgi-bin/metrics', {signal:AbortSignal.timeout(4000)})).text();
+      for (const line of mtext.split('\n')) {
+        if (line.startsWith('#') || !line.trim()) continue;
+        const parts = line.split(/\s+/);
+        const key = parts[0].replace(/{[^}]*}/,'');
+        if (key === 'aredn_rf_noise_dbm' || key === 'noise_dbm' || key === 'wifi_noise') {
+          const v = parseFloat(parts[parts.length-1]);
+          if (!isNaN(v)) { noise_floor = Math.round(v); break; }
+        }
+      }
+    } catch(e) {}
+
+    const health={node:label||data.node||ip,timestamp:new Date().toISOString(),uptime:sys.uptime||'?',load_1m:parseFloat(loads[0])||0,load_5m:parseFloat(loads[1])||0,load_15m:parseFloat(loads[2])||0,free_memory_kb:parseInt(sys.freememory)||null,firmware_version:fw||null,model:det.model||null,lat:data.lat||null,lon:data.lon||null,gridsquare:data.gridsquare||null,description:det.description||null,tunnel_count:tun.active_tunnel_count||0,api_version:av||null,routing_protocol:routing,noise_floor,meshrf:{status:mrf.status||null,ssid:mrf.ssid||null,channel:mrf.channel||null,chanbw:mrf.chanbw||null,freq:mrf.freq||null,antenna:mrf.antenna||null}};
+    const links=[];const lqm=data.lqm||{};
+    if(lqm.enabled){const tr=(lqm.info||{}).trackers||{};for(const[mac,info]of Object.entries(tr)){if(!info.hostname)continue;links.push({mac,hostname:info.hostname,ip:info.ip||'',quality:info.quality??null,babel_metric:info.babel_metric??null,ping_success_time:info.ping_success_time??null,routable:info.routable??true,localarea:info.localarea==null?true:(info.localarea===true||info.localarea===1||info.localarea==="true"),signal:info.signal??null,snr:info.snr??null,rev_snr:info.rev_snr??null,neighbor_firmware:null,neighbor_model:null,neighbor_routing:null,neighbor_error:null});}
+    links.sort((a,b)=>(b.quality||0)-(a.quality||0));
+    await Promise.all(links.map(async lk=>{const nbH=(lk.ip&&lk.ip.startsWith('10.'))?lk.ip:(lk.hostname+'.local.mesh');try{let nd;try{nd=await fetchJSON('http://'+nbH+'/a/sysinfo');}catch{nd=await fetchJSON('http://'+nbH+'/cgi-bin/sysinfo.json');}const nd2=nd.node_details||{},nfw=nd2.firmware_version||'',nav=String(nd.api_version||'');let nr='unknown';if(nfw){if(/^\d{8}/.test(nfw))nr='babel';else{const m=nfw.match(/^(\d+)\.(\d+)/);if(m){const[,maj,min]=[...m].map(Number);nr=maj>3||(maj===3&&min>=23)?'babel':maj===3&&min===22?'babel+olsr':'olsr';}}}else if(nav.startsWith('2.'))nr='babel';else if(nav.startsWith('1.'))nr='olsr';lk.neighbor_firmware=nfw||null;lk.neighbor_model=nd2.model||null;lk.neighbor_routing=nr;}catch(e){lk.neighbor_error='unreachable';}}));}
+    return{health,links,error:null};
+  }catch(e){return{health:{node:label||ip,timestamp:new Date().toISOString(),uptime:'unavailable',load_1m:0,load_5m:0,load_15m:0,free_memory_kb:null,firmware_version:null,model:null,lat:null,lon:null,gridsquare:null,description:null,tunnel_count:0,api_version:null,routing_protocol:'unknown',meshrf:{}},links:[],error:(e.message||String(e))+(e.message&&e.message.includes('fetch')?' — on Android use the node IP (10.x.x.x)':'')};}
+}
+
+function setLiveIndicator(s){const ts=document.getElementById('poll-ts'),t=new Date().toLocaleTimeString();if(s==='ok')ts.innerHTML=`<span style="display:flex;align-items:center;gap:5px;color:var(--green-text)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></span>Live — ${t}</span>`;else ts.innerHTML=`<span style="color:var(--text3)">Polling… ${t}</span>`;}
+function refreshAll(){renderNodes();renderLinks();updateStats();}
+
+// ── Antenna Aiming ────────────────────────────────────────────────────────────
+function toggleAimLock(){AS.locked=!AS.locked;const btn=document.getElementById('aim-lock-btn');btn.textContent=AS.locked?'🔒 Locked':'Lock target';btn.classList.toggle('locked',AS.locked);}
+function updateAimFromLive(r){_aimLastResults=r;if(!AS.locked)populateAimSelectors(r);applyAimSelection();}
+function populateAimSelectors(r){const ns=document.getElementById('aim-node-sel'),ls=document.getElementById('aim-link-sel'),nd=document.getElementById('aim-no-data'),al=r.flatMap(nm=>(nm.links||[]).map(lk=>({...lk,_node:nm.health.node})));if(!al.length){nd.style.display='inline';ns.style.display='none';ls.style.display='none';return;}nd.style.display='none';ns.style.display='';ls.style.display='';const pn=ns.value,pl=ls.value,names=[...new Set(r.filter(n=>!n.error&&n.links.length).map(n=>n.health.node))];ns.innerHTML=names.map(n=>`<option value="${n}">${n}</option>`).join('');if(pn&&names.includes(pn))ns.value=pn;updateLinkSelector(pl);}
+function updateLinkSelector(pl){const ns=document.getElementById('aim-node-sel'),ls=document.getElementById('aim-link-sel'),nm=_aimLastResults.find(n=>n.health.node===ns.value),links=nm?nm.links:[];ls.innerHTML=links.map(lk=>`<option value="${lk.hostname}">${lk.hostname}</option>`).join('');if(pl&&links.some(lk=>lk.hostname===pl))ls.value=pl;}
+function onAimSelChange(){updateLinkSelector(document.getElementById('aim-link-sel').value);AS.bq=null;AS.bping=null;AS.bsig=null;AS.bsnr=null;AS.brsnr=null;AS.bbabel=null;applyAimSelection();}
+function applyAimSelection(){const ns=document.getElementById('aim-node-sel'),ls=document.getElementById('aim-link-sel'),nm=_aimLastResults.find(n=>n.health.node===ns.value);if(!nm)return;const link=nm.links.find(lk=>lk.hostname===ls.value)||nm.links[0];if(!link)return;const q=link.quality??null,ping=link.ping_success_time!=null?link.ping_success_time*1000:null,sig=link.signal??null,snr=link.snr??null,rsnr=link.rev_snr??null,babel=link.babel_metric??null;AS.poll++;AS.mode='ok';AS.q=q;AS.ping=ping;AS.sig=sig;AS.snr=snr;AS.rsnr=rsnr;AS.babel=babel;if(q!=null&&(AS.bq==null||q>AS.bq))AS.bq=q;if(ping!=null&&(AS.bping==null||ping<AS.bping))AS.bping=ping;if(sig!=null&&(AS.bsig==null||sig>AS.bsig))AS.bsig=sig;if(snr!=null&&(AS.bsnr==null||snr>AS.bsnr))AS.bsnr=snr;if(rsnr!=null&&(AS.brsnr==null||rsnr>AS.brsnr))AS.brsnr=rsnr;if(babel!=null&&(AS.bbabel==null||babel<AS.bbabel))AS.bbabel=babel;updateAimDisplay();}
+function aimDelta(c,b,h,u){const d=c-b;if(Math.abs(d)<0.1)return['= best','delta-best'];const bt=h?d>0:d<0;return[(d>0?'+':'')+d.toFixed(1)+u+' '+(bt?'▲':'▼'),bt?'delta-better':'delta-worse'];}
+function updateAimDisplay(){const s=AS;document.getElementById('aim-poll-label').textContent='poll #'+s.poll;if(s.poll===0){document.getElementById('aim-dot').className='dot dot-amber';document.getElementById('aim-status-text').textContent='Not connected';document.getElementById('aim-warn').innerHTML='<div style="font-size:13px;color:var(--text3);padding:8px 0">Start polling — the aiming display updates automatically.</div>';['aim-q-val','aim-p-val','aim-babel-val'].forEach(id=>document.getElementById(id).textContent='—');['aim-q-delta','aim-p-delta','aim-babel-delta'].forEach(id=>{const el=document.getElementById(id);el.textContent='';el.className='aim-delta';});document.getElementById('aim-q-bar').style.width='0%';['aim-sig-val','aim-snr-val','aim-rsnr-val'].forEach(id=>document.getElementById(id).innerHTML='— <span class="munit">'+(id.includes('sig')?'dBm':'dB')+'</span>');['aim-sig-delta','aim-snr-delta','aim-rsnr-delta'].forEach(id=>document.getElementById(id).textContent='');['b-q','b-sig','b-snr','b-rsnr','b-babel'].forEach(id=>document.getElementById(id).textContent='—');return;}
+const isOk=s.mode==='ok',isR=s.mode==='remote',isL=s.mode==='local';document.getElementById('aim-dot').className='dot '+(isOk?'dot-green':isR?'dot-amber':'dot-red');document.getElementById('aim-status-text').textContent=isOk?'Both nodes up':isR?'Remote not responding':'Local node down';const w=document.getElementById('aim-warn');if(isL)w.innerHTML='<div class="warn-local">LOCAL NODE UNREACHABLE — check power and connection.</div>';else if(isR)w.innerHTML='<div class="warn-remote">REMOTE NODE NOT RESPONDING — metrics are stale.</div>';else w.innerHTML='';
+const fmt=(v,d=1)=>v!=null?v.toFixed(d):'—',fmtI=v=>v!=null?String(v):'—';
+document.getElementById('aim-q-val').textContent=fmt(s.q);const qb=document.getElementById('aim-q-bar');qb.style.width=(s.q||0)+'%';qb.className='big-bar-fill '+qClass(s.q);if(s.q!=null&&s.bq!=null){const[qds,qdc]=aimDelta(s.q,s.bq,true,'%');const el=document.getElementById('aim-q-delta');el.textContent=qds;el.className='aim-delta '+qdc;}
+document.getElementById('aim-p-val').textContent=fmt(s.ping);if(s.ping!=null&&s.bping!=null){const[pds,pdc]=aimDelta(s.ping,s.bping,false,' ms');const el=document.getElementById('aim-p-delta');el.textContent=pds;el.className='aim-delta '+pdc;}
+document.getElementById('aim-sig-val').innerHTML=fmtI(s.sig)+' <span class="munit">dBm</span>';if(s.sig!=null&&s.bsig!=null){const[sds]=aimDelta(s.sig,s.bsig,true,' dB');document.getElementById('aim-sig-delta').textContent=sds;}
+document.getElementById('aim-snr-val').innerHTML=fmtI(s.snr)+' <span class="munit">dB</span>';if(s.snr!=null&&s.bsnr!=null){const[snds]=aimDelta(s.snr,s.bsnr,true,' dB');document.getElementById('aim-snr-delta').textContent=snds;}
+document.getElementById('aim-rsnr-val').innerHTML=fmtI(s.rsnr)+' <span class="munit">dB</span>';if(s.rsnr!=null&&s.brsnr!=null){const[rds]=aimDelta(s.rsnr,s.brsnr,true,' dB');document.getElementById('aim-rsnr-delta').textContent=rds;}
+document.getElementById('aim-babel-val').textContent=fmtI(s.babel);if(s.babel!=null&&s.bbabel!=null){const[bds]=aimDelta(s.babel,s.bbabel,false,'');document.getElementById('aim-babel-delta').textContent=bds;}
+document.getElementById('b-q').textContent=s.bq!=null?fmt(s.bq)+'%':'—';document.getElementById('b-sig').textContent=s.bsig!=null?s.bsig+' dBm':'—';document.getElementById('b-snr').textContent=s.bsnr!=null?s.bsnr+' dB':'—';document.getElementById('b-rsnr').textContent=s.brsnr!=null?s.brsnr+' dB':'—';document.getElementById('b-babel').textContent=s.bbabel!=null?s.bbabel:'—';}
+
+// ── RF conflict detection ─────────────────────────────────────────────────────
+function checkRFConflicts(results) {
+  const banner = document.getElementById('alert-rf');
+  const rfNodes = results.filter(nm => !nm.error && nm.health.meshrf && nm.health.meshrf.freq);
+  if (rfNodes.length < 2) { banner.classList.remove('visible'); return; }
+
+  const conflicts = [];
+
+  // Check channel mismatches between nodes
+  const channels = rfNodes.map(nm => ({ node: nm.health.node, channel: nm.health.meshrf.channel, freq: nm.health.meshrf.freq, chanbw: nm.health.meshrf.chanbw }));
+  const freqs   = [...new Set(channels.map(c => c.freq))];
+  const bws     = [...new Set(channels.map(c => c.chanbw))];
+
+  if (freqs.length > 1) {
+    const groups = channels.map(c => c.node + ' (' + c.freq + ' MHz)').join(', ');
+    conflicts.push('Frequency mismatch: ' + groups);
+  }
+  if (bws.length > 1) {
+    const groups = channels.map(c => c.node + ' (' + c.chanbw + ' MHz BW)').join(', ');
+    conflicts.push('Bandwidth mismatch: ' + groups);
+  }
+
+  // Check noise floor — warn if any node has high noise (worse than -85 dBm)
+  results.forEach(nm => {
+    if (nm.health.noise_floor != null && nm.health.noise_floor > -85) {
+      conflicts.push(nm.health.node + ' noise floor is high: ' + nm.health.noise_floor + ' dBm (interference likely)');
+    }
+  });
+
+  if (conflicts.length) {
+    document.getElementById('alert-rf-msg').textContent = '⚠ RF issue: ' + conflicts.join(' · ');
+    banner.classList.add('visible');
+  } else {
+    banner.classList.remove('visible');
+  }
+}
+
+// ── Theme toggle ─────────────────────────────────────────────────────────────
+function toggleTheme(){
+  const root=document.documentElement;
+  const isDark=root.getAttribute('data-theme')==='dark'||
+    (!root.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  if(isDark){root.setAttribute('data-theme','light');}
+  else{root.setAttribute('data-theme','dark');}
+  updateThemeBtn();
+  // Redraw canvas elements that use isDark
+  if(document.getElementById('panel-topology').classList.contains('active'))renderTopology();
+}
+function updateThemeBtn(){
+  const root=document.documentElement;
+  const isDark=root.getAttribute('data-theme')==='dark'||
+    (!root.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const btn=document.getElementById('theme-btn');
+  if(btn){btn.textContent=isDark?'☀ Light':'☾ Dark';}
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+updateAimDisplay();
+updateThemeBtn();
+if(/android/i.test(navigator.userAgent)){document.getElementById('android-tip').style.display='inline';document.getElementById('desktop-tip').style.display='none';}
+</script>
+</body>
+</html>
